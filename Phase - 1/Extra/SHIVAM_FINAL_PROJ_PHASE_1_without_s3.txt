@@ -1,0 +1,230 @@
+
+1. 
+hdfs dfs -mkdir -p /user/hive/warehouse -creating “warehouse” directory inside “hive” directory
+
+2.
+hdfs dfs -chmod g+w /user/hive/warehouse - granting write permission to the group
+
+3. For 2003.csv File:
+
+wget https://dataverse.harvard.edu/api/access/datafile/:persistentId?persistentId=doi:10.7910/DVN/HG7NV7/KM2QOA
+
+mv :persistentId?persistentId=doi:10.7910%2FDVN%2FHG7NV7%2FKM2QOA 2003.csv.bz2
+
+bzip2 -d 2003.csv.bz2 - unzip
+
+hdfs dfs -put 2003.csv /user/hive/warehouse  - Copying the new file back to HDFS
+
+
+
+4. For Airports.csv File:
+
+wget https://dataverse.harvard.edu/api/access/datafile/:persistentId?persistentId=doi:10.7910/DVN/HG7NV7/XTPZZY
+
+mv \:persistentId?persistentId=doi:10.7910%2FDVN%2FHG7NV7%2FXTPZZY Airports.csv
+
+hdfs dfs -put Airports.csv /user/hive/warehouse  - Copy the new file back to HDFS
+
+head -n 10 Airports.csv  -First 10 lines from csv file
+
+5. For Carriers.csv File
+
+wget https://dataverse.harvard.edu/api/access/datafile/:persistentId?persistentId=doi:10.7910/DVN/HG7NV7/3NOQ6Q
+
+mv \:persistentId?persistentId=doi:10.7910%2FDVN%2FHG7NV7%2F3NOQ6Q Carriers.csv - renaming the downloaded file as Carriers.csv
+
+hdfs dfs -put Carriers.csv /user/hive/warehouse  - Copy the new file back to HDFS
+
+head -n 10 Carriers.csv  -First 10 lines from csv file
+
+6. Creation of hive table and load all the data into it 
+
+hive
+
+Create database ShivamFlightInfo; -creating new database “AdityaFlightInfo”
+
+Use ShivamFlightInfo; -Using the new database
+
+CREATE TABLE IF NOT EXISTS Shivam2003 (
+Year INT,
+Month INT,
+DayofMonth INT,
+DayOfWeek INT,
+DepTime STRING,
+CRSDepTime STRING,
+ArrTime STRING,
+CRSArrTime STRING,
+UniqueCarrier STRING,
+FlightNum INT,
+TailNum INT,
+ActualElapsedTime INT,
+CRSElapsedTime INT,
+AirTime INT,
+ArrDelay INT,
+DepDelay STRING,
+Origin STRING,
+Dest STRING,
+Distance INT,
+TaxiIn INT,
+TaxiOut STRING,
+Cancelled INT,
+CancellationCode STRING,
+Diverted INT,
+CarrierDelay INT,
+WeatherDelay INT,
+NASDelay INT,
+SecurityDelay INT,
+LateAircraftDelay INT,
+PRIMARY KEY (UniqueCarrier, Origin, Dest) DISABLE NOVALIDATE
+)
+COMMENT 'Flight Info'
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
+WITH SERDEPROPERTIES (
+"seperatorChar" = ","
+);
+
+LOAD DATA INPATH  '/user/hive/warehouse/2003.csv' OVERWRITE INTO TABLE Shivam2003; - Loading the data to table “Shivam2003”
+
+
+CREATE TABLE IF NOT EXISTS ShivamAirports (
+iata STRING,
+airport STRING,
+city STRING,
+state STRING,
+country STRING,
+lat DOUBLE,
+long DOUBLE
+)
+COMMENT 'Airports Info'
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
+WITH SERDEPROPERTIES (
+"seperatorChar" = ","
+);
+
+LOAD DATA INPATH '/user/hive/warehouse/Airports.csv' OVERWRITE INTO TABLE ShivamAirports;
+- Loading the data to table “ShivamAirports”
+
+
+Creating a “ShivamCarriers” table
+
+CREATE TABLE IF NOT EXISTS ShivamCarriers (
+Code STRING,
+Description STRING,
+)
+COMMENT 'Carriers Table'
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
+WITH SERDEPROPERTIES (
+"seperatorChar" = ","
+);
+
+LOAD DATA INPATH '/user/hive/warehouse/Carriers.csv' OVERWRITE INTO TABLE ShivamCarriers;
+- Loading the data to table “ShivamCarriers”
+
+7. Display 100 rows 
+
+SELECT * FROM Shivam2003 LIMIT 100;
+
+SELECT * FROM ShivamAirports LIMIT 100;
+
+SELECT * FROM ShivamCarriers LIMIT 100;
+
+8. Data Analysis
+
+
+DATA ANALYSIS 
+
+
+1.
+SELECT sj.Year, sj.Origin, a.airport,
+(round((sum(sj.Arrdelay))/60,2)) as Total_ArrDelay,
+(round((sum(sj.Depdelay))/60,2)) as Total_DepDelay,
+(round((sum(sj.Arrdelay) + sum(sj.DepDelay))/60,2)) as Total_Delay
+FROM Shivam2003 sj
+INNER JOIN ShivamAirports a ON sj.Origin = a.iata
+GROUP BY sj.Year, sj.Origin, a.airport
+ORDER BY Total_Delay DESC
+LIMIT 3;
+
+2.
+SELECT sj.Year, sj.Dest, air.airport,
+  ROUND((SUM(sj.Arrdelay) / 60), 2) AS Total_ArrDelay,
+  ROUND((SUM(sj.DepDelay) / 60), 2) AS Total_DepDelay,
+  ROUND((SUM(sj.Arrdelay) + SUM(sj.DepDelay)) / 60, 2) AS Total_Delay
+FROM Shivam2003 sj
+INNER JOIN ShivamAirports air ON sj.Dest = air.iata
+GROUP BY sj.Year, sj.Dest, air.airport
+ORDER BY Total_Delay DESC LIMIT 3;
+
+
+3.
+SELECT sj.Year, sj.Origin, c.Description,
+(round((sum(sj.Arrdelay))/60,2)) as Total_ArrDelay,
+(round((sum(sj.Depdelay))/60,2)) as Total_DepDelay,
+(round((sum(sj.Arrdelay) + sum(sj.DepDelay))/60,2)) as Total_Delay
+FROM Shivam2003 sj
+INNER JOIN ShivamCarriers c on sj.UniqueCarrier = c.code
+GROUP BY sj.Year, sj.Origin, c.Description
+ORDER BY Total_delay DESC LIMIT 3
+;
+
+4. 
+SELECT sj.Year, sj.Dest, c.Description,
+(round((sum(sj.Arrdelay))/60,2)) as Total_ArrDelay,
+(round((sum(sj.Depdelay))/60,2)) as Total_DepDelay,
+(round((sum(sj.Arrdelay) + sum(sj.DepDelay))/60,2)) as Total_Delay
+FROM Shivam2003 sj
+INNER JOIN ShivamCarriers c on sj.UniqueCarrier = c.code
+GROUP BY sj.Year, sj.Dest, c.Description
+ORDER BY Total_delay DESC LIMIT 3
+;
+
+5. 
+SELECT
+  Year,
+  CASE
+    WHEN SUM(ArrDelay) > SUM(DepDelay) THEN ROUND(SUM(ArrDelay) / 60 / 2)
+    WHEN SUM(ArrDelay) < SUM(DepDelay) THEN ROUND(SUM(DepDelay) / 60 / 2)
+    ELSE 0
+  END AS Total_Delay,
+  CASE
+    WHEN SUM(ArrDelay) > SUM(DepDelay) THEN 'Arrivals'
+    WHEN SUM(ArrDelay) < SUM(DepDelay) THEN 'Departures'
+    ELSE 'Equal'
+  END AS DelayType
+FROM Shivam2003
+WHERE
+  ArrDelay IS NOT NULL
+  AND DepDelay IS NOT NULL
+GROUP BY Year;
+
+
+6. 
+SELECT Year,
+(round((sum(Arrdelay))/60,2)) as Total_ArrDelay,
+(round((sum(DepDelay))/60,2)) as Total_DepDelay
+FROM Shivam2003
+GROUP BY Year;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

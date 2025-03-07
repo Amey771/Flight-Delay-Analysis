@@ -1,0 +1,185 @@
+## thao edited
+
+hadoop fs -get s3://scalable-project-s3-bucket/2002.csv /home/hadoop/2002.csv
+hadoop fs -put 2002.csv /scalable-project-s3-bucket
+hive
+
+CREATE TABLE airports (
+    iata STRING,
+    airport STRING,
+    city STRING,
+state STRING,
+country STRING,
+lat string,
+long string
+)
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ','
+LINES TERMINATED BY '\n';
+
+
+CREATE TABLE carriers (
+    	code STRING,
+	name STRING
+)
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ','
+LINES TERMINATED BY '\n';
+
+b) create table:
+CREATE TABLE amey_flight_data (
+     Year INT,
+     Month INT,
+     DayofMonth INT,
+     DayOfWeek INT,
+     DepTime INT,
+     CRSDepTime INT,
+     ArrTime INT,
+     CRSArrTime INT,
+     UniqueCarrier STRING,
+     FlightNum STRING,
+     TailNum STRING,
+     ActualElapsedTime INT,
+     CRSElapsedTime INT,
+     AirTime INT,
+     ArrDelay INT,
+     DepDelay INT,
+     Origin STRING,
+     Dest STRING,
+     Distance INT,
+     TaxiIn INT,
+     TaxiOut INT,
+     Cancelled INT,
+     CancellationCode STRING,
+     Diverted INT,
+     CarrierDelay INT,
+     WeatherDelay INT,
+     NASDelay INT,
+     SecurityDelay INT,
+     LateAircraftDelay INT
+ )
+
+ ROW FORMAT DELIMITED
+ FIELDS TERMINATED BY ','
+ LINES TERMINATED BY '\n';
+
+
+load data local inpath'./2002.csv' into table amey_flight_data;
+load data local inpath'./airports.csv' into table airports;
+load data local inpath'./airlines.csv' into table carriers;
+
+ 
+c)
+select * from  amey_flight_data limit 100;
+
+d)
+
+SELECT
+Origin AS airportcode,
+SUM (ArrDelay + DepDelay) / 60 AS total_delay_hours
+FROM
+amey_flight_data
+WHERE
+Year = 2002
+GROUP BY
+Origin
+ORDER BY
+total_delay_hours DESC
+LIMIT 3;
+
+e)
+
+SELECT
+UniqueCarrier,
+SUM (ArrDelay + DepDelay) /60.0 AS TotalDelayHours
+FROM
+amey_flight_data
+GROUP BY
+UniqueCarrier
+ORDER BY
+TotalDelayHours DESC
+LIMIT 3;
+
+f)
+
+SELECT CASE WHEN SUM (ArrDelay) > SUM(DepDelay) THEN "Arrivals"
+		WHEN SUM (DepDelay) > SUM(ArrDelay) THEN "Departures"
+		ELSE "Equal"
+	END AS largest_delay_type
+FROm	amey_flight_data
+WHERE	Year = 2002;
+
+------
+#shivam
+
+SELECT Year,
+(round((sum(Arrdelay))/60,2)) as Total_ArrDelay,
+(round((sum(DepDelay))/60,2)) as Total_DepDelay
+FROM amey_flight_data
+GROUP BY Year;
+------------
+
+SELECT t.year, t.origin, a.airport, 
+round((sum(t.arrdelay))/60,2)) as total_arrdelay, 
+round((sum(t.DepDelay))/60,2)) as total_DepDelay, 
+round((sum(t.arrdelay)+sum(t.DepDelay))/60,2) as total_delay 
+from amey_flight_data t inner join airports a on t.origin = a.iata 
+group by t.year, t.origin, a.airport 
+order by total_delay desc limit 3;
+
+SELECT 
+    t.year,
+    t.origin,
+    a.airport,
+    ROUND((SUM(t.arrdelay))/60, 2) AS total_arrdelay, 
+    ROUND((SUM(t.DepDelay))/60, 2) AS total_DepDelay, 
+    ROUND((SUM(t.arrdelay) + SUM(t.DepDelay))/60, 2) AS total_delay 
+FROM amey_flight_data t 
+INNER JOIN airports a ON t.origin = a.iata 
+GROUP BY t.year, t.origin, a.airport 
+ORDER BY total_delay DESC 
+LIMIT 3;
+
+
+CREATE TABLE most_delay_airports as
+SELECT
+t.Origin,
+a.airport_name,
+round(SUM (ArrDelay + DepDelay) / 60,2) AS total_delay_hours
+FROM amey_flight_data t
+INNER JOIN airports2 a on t.origin = a.code
+WHERE Year = 2002
+GROUP BY t.Origin, a.airport_name
+ORDER BY total_delay_hours DESC
+LIMIT 3;
+
+CREATE TABLE airports2 as
+SELECT regexp_replace(iata, '"', '') AS code,
+regexp_replace(airport, '"', '') AS airport_name
+FROM airports;
+
+CREATE TABLE carriers2 as
+SELECT regexp_replace(code, '"', '') AS code,
+regexp_replace(name, '"', '') AS name
+FROM carriers;
+
+
+SELECT
+UniqueCarrier as Code,
+name as Airlines,
+round(SUM (ArrDelay + DepDelay) / 60,2) AS total_delay_hours
+FROM amey_flight_data t
+INNER JOIN carriers2 c on UniqueCarrier = c.code
+WHERE Year = 2007
+GROUP BY UniqueCarrier, name
+ORDER BY total_delay_hours DESC
+LIMIT 3;
+
+SELECT t.origin,SUM(ArrDelay) as Arrivals_Delay,
+sum(DepDelay) as Departure_Delay,CASE 
+         WHEN SUM(ArrDelay) > SUM(DepDelay) THEN "Arrivals"
+         WHEN SUM(DepDelay) > SUM(ArrDelay) THEN "Departures" ELSE "Equal" END AS delay_type
+FROM amey_flight_data t
+inner join most_delay_airports m on t.origin=m.origin
+WHERE Year = 2002 
+group by t.origin;

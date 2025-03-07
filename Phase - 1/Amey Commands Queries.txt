@@ -1,0 +1,234 @@
+Hint given in class: 
+
+Hint:
+
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
+WITH SERDEPROPERTIES ("separatorChar" = ",", "quoteChar"     = "\"");
+
+------------------------------------------------------------------------------------------------------
+
+STEPS:
+
+1. Creating directory
+
+hdfs dfs -mkdir -p /user/hive/warehouse
+
+2. Command to change the permissions of a directory in HDFS
+
+hdfs dfs -chmod g+w /user/hive/warehouse
+
+3. For 2002.csv file
+
+Command to upload data with URL- 2002
+
+wget https://dataverse.harvard.edu/api/access/datafile/:persistentId?persistentId=doi:10.7910/DVN/HG7NV7/OWJXH3
+
+4. Creating alias for directory
+
+mv \:persistentId?persistentId=doi:10.7910%2FDVN%2FHG7NV7%2FOWJXH3 2002.csv.bz2
+
+
+5. Copying the new file back to HDFS
+
+hdfs dfs -put 2002.csv /user/hive/warehouse
+
+
+6. Check file
+
+head -n 10 2002.csv
+
+
+7. For Airports.csv
+
+wget https://dataverse.harvard.edu/api/access/datafile/:persistentId?persistentId=doi:10.7910/DVN/HG7NV7/XTPZZY
+
+mv \:persistentId?persistentId=doi:10.7910%2FDVN%2FHG7NV7%2FXTPZZY Airports.csv
+
+hdfs dfs -put Airports.csv /user/hive/warehouse
+
+head -n 10 Airports.csv
+
+
+8. For Carriers.csv
+
+wget https://dataverse.harvard.edu/api/access/datafile/:persistentId?persistentId=doi:10.7910/DVN/HG7NV7/3NOQ6Q
+
+mv \:persistentId?persistentId=doi:10.7910%2FDVN%2FHG7NV7%2F3NOQ6Q Carriers.csv
+
+hdfs dfs -put Carriers.csv /user/hive/warehouse
+
+head -n 10 Carriers.csv 
+
+9. hive
+---------------------------------------------------------------------------------------------------------------------
+10.
+
+Create database AmeyFlightInfo; -creating new database “AmeyFlightInfo”
+
+Use AmeyFlightInfo; -Using the new database
+
+CREATE TABLE IF NOT EXISTS Amey2002 (
+Year INT,
+Month INT,
+DayofMonth INT,
+DayOfWeek INT,
+DepTime STRING,
+CRSDepTime STRING,
+ArrTime STRING,
+CRSArrTime STRING,
+UniqueCarrier STRING,
+FlightNum INT,
+TailNum INT,
+ActualElapsedTime INT,
+CRSElapsedTime INT,
+AirTime INT,
+ArrDelay INT,
+DepDelay STRING,
+Origin STRING,
+Dest STRING,
+Distance INT,
+TaxiIn INT,
+TaxiOut STRING,
+Cancelled INT,
+CancellationCode STRING,
+Diverted INT,
+CarrierDelay INT,
+WeatherDelay INT,
+NASDelay INT,
+SecurityDelay INT,
+LateAircraftDelay INT,
+PRIMARY KEY (UniqueCarrier, Origin, Dest) DISABLE NOVALIDATE
+)
+COMMENT 'Flight Info'
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
+WITH SERDEPROPERTIES (
+"seperatorChar" = ","
+);
+
+LOAD DATA INPATH  '/user/hive/warehouse/2002.csv' OVERWRITE INTO TABLE Amey2002; - Loading the data to table “Amey2002”
+
+
+CREATE TABLE IF NOT EXISTS AmeyAirports (
+iata STRING,
+airport STRING,
+city STRING,
+state STRING,
+country STRING,
+lat DOUBLE,
+long DOUBLE
+)
+COMMENT 'Airports Info'
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
+WITH SERDEPROPERTIES (
+"seperatorChar" = ","
+);
+
+LOAD DATA INPATH '/user/hive/warehouse/Airports.csv' OVERWRITE INTO TABLE AmeyAirports;
+- Loading the data to table “AmeyAirports”
+
+
+Creating a “AmeyCarriers” table
+
+CREATE TABLE IF NOT EXISTS AmeyCarriers (
+    Code STRING,
+    Description STRING
+)
+COMMENT 'Carriers Table'
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
+WITH SERDEPROPERTIES (
+    "separatorChar" = ","
+);
+
+LOAD DATA INPATH '/user/hive/warehouse/Carriers.csv' OVERWRITE INTO TABLE AmeyCarriers;
+- Loading the data to table “AmeyCarriers”
+
+7. Display 100 rows 
+
+SELECT * FROM Amey2002 LIMIT 100;
+
+SELECT * FROM AmeyAirports LIMIT 100;
+
+SELECT * FROM AmeyCarriers LIMIT 100;
+
+8. Data Analysis
+
+
+DATA ANALYSIS 
+
+
+1.
+SELECT ab.Year, ab.Origin, a.airport,
+(round((sum(ab.Arrdelay))/60,2)) as Total_ArrDelay,
+(round((sum(ab.Depdelay))/60,2)) as Total_DepDelay,
+(round((sum(ab.Arrdelay) + sum(ab.DepDelay))/60,2)) as Total_Delay
+FROM Amey2002 ab
+INNER JOIN AmeyAirports a ON ab.Origin = a.iata
+GROUP BY ab.Year, ab.Origin, a.airport
+ORDER BY Total_Delay DESC
+LIMIT 3;
+
+2.
+SELECT ab.Year, ab.Dest, air.airport,
+  ROUND((SUM(ab.Arrdelay) / 60), 2) AS Total_ArrDelay,
+  ROUND((SUM(ab.DepDelay) / 60), 2) AS Total_DepDelay,
+  ROUND((SUM(ab.Arrdelay) + SUM(ab.DepDelay)) / 60, 2) AS Total_Delay
+FROM Amey2002 ab
+INNER JOIN AmeyAirports air ON ab.Dest = air.iata
+GROUP BY ab.Year, ab.Dest, air.airport
+ORDER BY Total_Delay DESC LIMIT 3;
+
+
+3.
+SELECT ab.Year, ab.Origin, c.Description,
+(round((sum(ab.Arrdelay))/60,2)) as Total_ArrDelay,
+(round((sum(ab.Depdelay))/60,2)) as Total_DepDelay,
+(round((sum(ab.Arrdelay) + sum(ab.DepDelay))/60,2)) as Total_Delay
+FROM Amey2002 ab
+INNER JOIN AmeyCarriers c on ab.UniqueCarrier = c.code
+GROUP BY ab.Year, ab.Origin, c.Description
+ORDER BY Total_delay DESC LIMIT 3;
+
+4. 
+SELECT ab.Year, ab.Dest, c.Description,
+(round((sum(ab.Arrdelay))/60,2)) as Total_ArrDelay,
+(round((sum(ab.Depdelay))/60,2)) as Total_DepDelay,
+(round((sum(ab.Arrdelay) + sum(ab.DepDelay))/60,2)) as Total_Delay
+FROM Amey2002 ab
+INNER JOIN AmeyCarriers c on ab.UniqueCarrier = c.code
+GROUP BY ab.Year, ab.Dest, c.Description
+ORDER BY Total_delay DESC LIMIT 3;
+
+5. 
+SELECT
+  Year,
+  CASE
+    WHEN SUM(ArrDelay) > SUM(DepDelay) THEN ROUND(SUM(ArrDelay) / 60 ), 2) 
+    WHEN SUM(ArrDelay) < SUM(DepDelay) THEN ROUND(SUM(DepDelay) / 60 ), 2)
+    ELSE 0
+  END AS Total_Delay,
+  CASE
+    WHEN SUM(ArrDelay) > SUM(DepDelay) THEN 'Arrivals'
+    WHEN SUM(ArrDelay) < SUM(DepDelay) THEN 'Departures'
+    ELSE 'Equal'
+  END AS DelayType
+FROM Amey2002
+WHERE
+  ArrDelay IS NOT NULL
+  AND DepDelay IS NOT NULL
+GROUP BY Year;
+
+
+6. 
+SELECT Year,
+(round((sum(Arrdelay))/60,2)) as Total_ArrDelay,
+(round((sum(DepDelay))/60,2)) as Total_DepDelay
+FROM Amey2002
+GROUP BY Year;
+
+
+
+
+
+
+
+
